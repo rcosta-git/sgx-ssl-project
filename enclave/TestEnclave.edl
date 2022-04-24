@@ -47,6 +47,9 @@ from "sgx_pthread.edl" import *;
 
 
     trusted {
-        public int t_gen_keys([user_check] unsigned char *pbuf); // could also test [out, count=8192]
+        public int t_gen_keys([user_check] unsigned char *pbuf);
+        public int t_decrypt_msg([user_check] unsigned char *inMsg,
+                                 int inLen,
+                                 [user_check] unsigned char *outMsg);
     };
 };

@@ -320,7 +320,14 @@ int main(int argc, char *argv[])
     std::cout << "Encrypting message: \"" << ptext_ex << "\"" << std::endl;
 
     num = RSA_public_encrypt(plen, ptext_ex, ctext, pPubRSA, RSA_PKCS1_PADDING);
-
+    if (num < 0) {
+        std::cout << "Got error " << ERR_peek_last_error() << std::endl;
+        return 1;
+    }
+    printf ("{\"encrypted message\":\"");
+    printf("%.*s", num, ctext);
+    printf("\"}\n\n");
+    
     printf("Sending encrypted message to enclave...\n");
     
 

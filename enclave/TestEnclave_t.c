@@ -32,6 +32,13 @@ typedef struct ms_t_gen_keys_t {
 	unsigned char* ms_pbuf;
 } ms_t_gen_keys_t;
 
+typedef struct ms_t_decrypt_msg_t {
+	int ms_retval;
+	unsigned char* ms_inMsg;
+	int ms_inLen;
+	unsigned char* ms_outMsg;
+} ms_t_decrypt_msg_t;
+
 typedef struct ms_uprint_t {
 	const char* ms_str;
 } ms_uprint_t;
@@ -108,33 +115,54 @@ static sgx_status_t SGX_CDECL sgx_t_gen_keys(void* pms)
 	return status;
 }
 
+static sgx_status_t SGX_CDECL sgx_t_decrypt_msg(void* pms)
+{
+	CHECK_REF_POINTER(pms, sizeof(ms_t_decrypt_msg_t));
+	//
+	// fence after pointer checks
+	//
+	sgx_lfence();
+	ms_t_decrypt_msg_t* ms = SGX_CAST(ms_t_decrypt_msg_t*, pms);
+	sgx_status_t status = SGX_SUCCESS;
+	unsigned char* _tmp_inMsg = ms->ms_inMsg;
+	unsigned char* _tmp_outMsg = ms->ms_outMsg;
+
+
+
+	ms->ms_retval = t_decrypt_msg(_tmp_inMsg, ms->ms_inLen, _tmp_outMsg);
+
+
+	return status;
+}
+
 SGX_EXTERNC const struct {
 	size_t nr_ecall;
-	struct {void* ecall_addr; uint8_t is_priv; uint8_t is_switchless;} ecall_table[1];
+	struct {void* ecall_addr; uint8_t is_priv; uint8_t is_switchless;} ecall_table[2];
 } g_ecall_table = {
-	1,
+	2,
 	{
 		{(void*)(uintptr_t)sgx_t_gen_keys, 0, 0},
+		{(void*)(uintptr_t)sgx_t_decrypt_msg, 0, 0},
 	}
 };
 
 SGX_EXTERNC const struct {
 	size_t nr_ocall;
-	uint8_t entry_table[11][1];
+	uint8_t entry_table[11][2];
 } g_dyn_entry_table = {
 	11,
 	{
-		{0, },
-		{0, },
-		{0, },
-		{0, },
-		{0, },
-		{0, },
-		{0, },
-		{0, },
-		{0, },
-		{0, },
-		{0, },
+		{0, 0, },
+		{0, 0, },
+		{0, 0, },
+		{0, 0, },
+		{0, 0, },
+		{0, 0, },
+		{0, 0, },
+		{0, 0, },
+		{0, 0, },
+		{0, 0, },
+		{0, 0, },
 	}
 };
 

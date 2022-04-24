@@ -62,6 +62,7 @@ int SGX_UBRIDGE(SGX_CDECL, pthread_wakeup_ocall, (unsigned long long waiter));
 #endif
 
 sgx_status_t t_gen_keys(sgx_enclave_id_t eid, int* retval, unsigned char* pbuf);
+sgx_status_t t_decrypt_msg(sgx_enclave_id_t eid, int* retval, unsigned char* inMsg, int inLen, unsigned char* outMsg);
 
 #ifdef __cplusplus
 }
