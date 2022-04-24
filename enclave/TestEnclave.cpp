@@ -91,7 +91,6 @@ struct evp_pkey_st {
 } /* EVP_PKEY */ ;
 
 RSA *global_keypair = NULL;
-EVP_PKEY *global_evp_pkey = NULL;
 
 int t_gen_keys(unsigned char *buf)
 {
@@ -116,14 +115,7 @@ int t_gen_keys(unsigned char *buf)
         printf("RSA_generate_key_ex failure: %ld\n", ERR_get_error());
         return 0;
     }
-
-    global_evp_pkey = EVP_PKEY_new();
-    if (global_evp_pkey == NULL) {
-        printf("EVP_PKEY_new failure: %ld\n", ERR_get_error());
-        return 0;
-    }
-    EVP_PKEY_assign_RSA(global_evp_pkey, global_keypair);
-
+    
     int len = 0;
     unsigned char *secureBuf = NULL;
     len = i2d_RSAPublicKey(global_keypair, &secureBuf);
@@ -133,5 +125,9 @@ int t_gen_keys(unsigned char *buf)
 
 int t_decrypt_msg(unsigned char *inMsg, int inLen, unsigned char *outMsg)
 {
-    return 0;
+    if (global_keypair == NULL) {
+        printf("No global keys generated!");
+    }
+    return RSA_private_decrypt(inLen, inMsg, outMsg, global_keypair,
+                               RSA_PKCS1_PADDING);
 }

@@ -279,18 +279,13 @@ int main(int argc, char *argv[])
     int keylen;
     printf("Calling enclave to generate keys...\n");
 
-    // Will want to start timing here
     status = t_gen_keys(global_eid, &keylen, buf);
-    // Will want to stop timing here
-    // May need to call thousands of times
+
     if (status != SGX_SUCCESS) {
-        printf("Call to t_sgxssl_call_apis has failed.\n");
+        printf("Call to SGX has failed.\n");
         return 1;    //Test failed
     }
-    if (keylen == 0) {
-        printf("Failed to get key from enclave.\n");
-        return 1;
-    }
+    if (keylen == 0) return 1;
     std::cout << "keylen: " << keylen << std::endl;
 
     // print public key
@@ -311,10 +306,9 @@ int main(int argc, char *argv[])
     // Encrypt a message
     int num;
     int plen;
-    unsigned char ptext[256];
     unsigned char ctext[256];
     static unsigned char ptext_ex[] = "Hello Enclave!";
-    plen = sizeof(ptext) - 1;
+    plen = sizeof(ptext_ex) - 1;
 
     std::cout << std::endl;
     std::cout << "Encrypting message: \"" << ptext_ex << "\"" << std::endl;
@@ -328,21 +322,26 @@ int main(int argc, char *argv[])
     printf("%.*s", num, ctext);
     printf("\"}\n\n");
     
+    int retNum;
+    unsigned char ptext[256];
     printf("Sending encrypted message to enclave...\n");
-    
 
-    printf("Decrypted message returned from enclave:\n");
+    status = t_decrypt_msg(global_eid, &retNum, ctext, num, ptext);
 
-    //// then send message to enclave to decrypt using private key (time this)
-    //// probably can pass the message length along with the encrypted msg
-    
+    if (status != SGX_SUCCESS) {
+        printf("Call to SGX failed");
+        return 1;
+    }
+    if (retNum == 0) {
+        return 1;
+    }
+
+    printf("Received decrypted message returned from enclave.\n");
+    printf ("{\"decrypted message\":\"");
+    printf("%.*s", retNum, ptext);
+    printf("\"}\n\n");
     
     RSA_free(pPubRSA);
     sgx_destroy_enclave(global_eid);
     return 0;
- 
-    if (status != SGX_SUCCESS) {
-        printf("Call to t_sgxssl_call_apis has failed.\n");
-        return 1;    //Test failed
-    }
 }
