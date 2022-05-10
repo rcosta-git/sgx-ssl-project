@@ -16,6 +16,7 @@ extern "C" {
 #endif
 
 int t_gen_keys(unsigned char* pbuf);
+int t_gen_keys_size(int keySize, unsigned char* pbuf);
 int t_decrypt_msg(unsigned char* inMsg, int inLen, unsigned char* outMsg);
 
 sgx_status_t SGX_CDECL uprint(const char* str);

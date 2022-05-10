@@ -123,6 +123,38 @@ int t_gen_keys(unsigned char *buf)
     return len;
 }
 
+int t_gen_keys_size(int keySize, unsigned char *buf)
+{
+    BIGNUM *bn = BN_new();
+    if (bn == NULL) {
+        printf("BN_new failure: %ld\n", ERR_get_error());
+        return 0;
+    }
+    int ret = BN_set_word(bn, RSA_F4);
+    if (!ret) {
+        printf("BN_set_word failure\n");
+        return 0;
+    }
+	
+    global_keypair = RSA_new();
+    if (global_keypair == NULL) {
+        printf("RSA_new failure: %ld\n", ERR_get_error());
+        return 0;
+    }
+    ret = RSA_generate_key_ex(global_keypair, keySize, bn, NULL);
+    if (!ret) {
+        printf("RSA_generate_key_ex failure: %ld\n", ERR_get_error());
+        return 0;
+    }
+    
+    int len = 0;
+    unsigned char *secureBuf = NULL;
+    len = i2d_RSAPublicKey(global_keypair, &secureBuf);
+    memcpy(buf, secureBuf, len);
+    free(secureBuf);
+    return len;
+}
+
 int t_decrypt_msg(unsigned char *inMsg, int inLen, unsigned char *outMsg)
 {
     if (global_keypair == NULL) {
@@ -131,3 +163,4 @@ int t_decrypt_msg(unsigned char *inMsg, int inLen, unsigned char *outMsg)
     return RSA_private_decrypt(inLen, inMsg, outMsg, global_keypair,
                                RSA_PKCS1_PADDING);
 }
+

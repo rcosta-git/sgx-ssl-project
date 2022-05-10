@@ -56,7 +56,12 @@
 #include <openssl/evp.h>
 #include <openssl/err.h>
 #include <openssl/rand.h>
+#include <sys/time.h> 
+#include <sys/resource.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 
+using namespace std;
 
 /* Global EID shared by multiple threads */
 sgx_enclave_id_t global_eid = 0;
@@ -254,6 +259,66 @@ void usgx_exit(int reason)
 	exit(reason);
 }
 
+/* Calculate the difference of the given start and finish timevals given.
+   Returns seconds value calculated. */
+double time_difference(const struct timeval start,
+                       const struct timeval finish)
+{
+        if (finish.tv_usec >= start.tv_usec) { 
+                return (double) (finish.tv_sec - start.tv_sec)
+                        + (double) (finish.tv_usec - start.tv_usec)/1E6;
+        } else { 
+                return (double) (finish.tv_sec - start.tv_sec - 1)
+                        + (double) (finish.tv_usec - start.tv_usec + 1000000)
+                        /1E6;
+        }
+}
+
+RSA *global_keypair = NULL;
+
+int gen_keys_size(int keySize, unsigned char *buf)
+{
+    BIGNUM *bn = BN_new();
+    if (bn == NULL) {
+        printf("BN_new failure: %ld\n", ERR_get_error());
+        return 0;
+    }
+    
+    int ret = BN_set_word(bn, RSA_F4);
+    if (!ret) {
+        printf("BN_set_word failure\n");
+        return 0;
+    }
+	
+    global_keypair = RSA_new();
+    if (global_keypair == NULL) {
+        printf("RSA_new failure: %ld\n", ERR_get_error());
+        return 0;
+    }
+    ret = RSA_generate_key_ex(global_keypair, keySize, bn, NULL);
+    if (!ret) {
+        printf("RSA_generate_key_ex failure: %ld\n", ERR_get_error());
+        return 0;
+    }
+    
+    int len = 0;
+    unsigned char *secureBuf = NULL;
+    len = i2d_RSAPublicKey(global_keypair, &secureBuf);
+    memcpy(buf, secureBuf, len);
+    free(secureBuf);
+    return len;
+}
+
+int decrypt_msg(unsigned char *inMsg, int inLen, unsigned char *outMsg)
+{
+    if (global_keypair == NULL) {
+        printf("No global keys generated!");
+    }
+    return RSA_private_decrypt(inLen, inMsg, outMsg, global_keypair,
+                               RSA_PKCS1_PADDING);
+}
+
+
 /* Application entry */
 int main(int argc, char *argv[])
 {
@@ -342,6 +407,133 @@ int main(int argc, char *argv[])
     printf("\"}\n\n");
     
     RSA_free(pPubRSA);
+
+    
+    ///////////
+    ///////////
+    ///////////////////////////////////
+    // let's do some timing!
+
+    cout << endl << endl << "Let's do some timing!!!" << endl << endl;
+    
+    struct rusage start_total, finish_total;
+
+    double user_average_enclave, system_average_enclave,
+        user_average_plain, system_average_plain;
+
+    int NUMREPS;
+    
+    ///////////////////////////////////////
+    //////////// TIMING KEY GENERATION
+
+    NUMREPS = 1000;
+
+#if 0
+    cout << endl << "Non-enclave key generation-----------" << endl << endl;
+    for (int i = 1; i <= 4; i++) { // change to 4, i * 1024
+        int keySize = i * 1024;
+        cout << "Key size " << keySize << endl;
+
+        getrusage(RUSAGE_SELF, &start_total);
+        for (int j = 0; j < NUMREPS; j++) {
+            keylen = gen_keys_size(keySize, buf);
+        }
+        getrusage(RUSAGE_SELF, &finish_total);
+        
+        cout << "Average User:" <<
+          time_difference(start_total.ru_utime, finish_total.ru_utime)
+          / (double) NUMREPS << endl;
+        cout << "Average System:" <<
+          time_difference(start_total.ru_stime, finish_total.ru_stime)
+          / (double) NUMREPS << endl;
+    }
+
+    cout << endl << "Enclave key generation------------" << endl;
+    for (int i = 1; i <= 4; i++) { // change to 4, i * 1024
+        int keySize = i * 1024;
+        cout << "Key size " << keySize << endl;
+
+        getrusage(RUSAGE_SELF, &start_total);
+        for (int j = 0; j < NUMREPS; j++) {
+            t_gen_keys_size(global_eid, &keylen, keySize, buf);
+        }
+        getrusage(RUSAGE_SELF, &finish_total);
+        
+        cout << "Average User:" <<
+          time_difference(start_total.ru_utime, finish_total.ru_utime)
+          / (double) NUMREPS << endl;
+        cout << "Average System:" <<
+          time_difference(start_total.ru_stime, finish_total.ru_stime)
+          / (double) NUMREPS << endl;
+    }
+#endif
+
+
+    ///////////////////////////////////////
+    //////////// TIMING DECRYPTION
+
+    cout << endl << "Non-enclave decryption------------" << endl;
+    for (int i = 1; i <= 1; i++) { // change to 4, i * 1024
+        int keySize = i * 1024;
+        cout << "Key size " << keySize << endl;
+        keylen = gen_keys_size(keySize, buf);
+        pPubRSA = d2i_RSAPublicKey(NULL, (const unsigned char**)&buf,
+                                    (long)keylen);
+        num = RSA_public_encrypt(plen, ptext_ex, ctext, pPubRSA, RSA_PKCS1_PADDING);
+        if (num < 0) {
+            std::cout << "Got error " << ERR_peek_last_error() << std::endl;
+            return 1;
+        }
+
+        getrusage(RUSAGE_SELF, &start_total);
+        for (int j = 0; j < NUMREPS; j++) {
+            retNum = decrypt_msg(ctext, num, ptext);
+        }
+        getrusage(RUSAGE_SELF, &finish_total);
+        
+        cout << "Average User:" <<
+          time_difference(start_total.ru_utime, finish_total.ru_utime)
+          / (double) NUMREPS << endl;
+        cout << "Average System:" <<
+          time_difference(start_total.ru_stime, finish_total.ru_stime)
+          / (double) NUMREPS << endl;
+    }
+
+#if 0
+    cout << endl << "Enclave decryption------------" << endl;
+    for (int i = 1; i <= 1; i++) { // change to 4, i * 1024
+        int keySize = i * 1024;
+        cout << "Key size " << keySize << endl;
+        status = t_gen_keys(global_eid, &keylen, buf);
+        if (status != SGX_SUCCESS) {
+            printf("Call to SGX has failed.\n");
+            return 1;    //Test failed
+        }
+        if (keylen == 0) return 1;
+        pPubRSA = d2i_RSAPublicKey(NULL, (const unsigned char**)&buf,
+                                    (long)keylen);
+        num = RSA_public_encrypt(plen, ptext_ex, ctext, pPubRSA, RSA_PKCS1_PADDING);
+        if (num < 0) {
+            std::cout << "Got error " << ERR_peek_last_error() << std::endl;
+            return 1;
+        }
+
+        getrusage(RUSAGE_SELF, &start_total);
+        for (int j = 0; j < NUMREPS; j++) {
+            t_decrypt_msg(global_eid, &retNum, ctext, num, ptext);
+        }
+        getrusage(RUSAGE_SELF, &finish_total);
+        
+        cout << "Average User:" <<
+          time_difference(start_total.ru_utime, finish_total.ru_utime)
+          / (double) NUMREPS << endl;
+        cout << "Average System:" <<
+          time_difference(start_total.ru_stime, finish_total.ru_stime)
+          / (double) NUMREPS << endl;
+    }
+#endif
+    
+    //////////
     sgx_destroy_enclave(global_eid);
     return 0;
 }

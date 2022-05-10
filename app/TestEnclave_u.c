@@ -6,6 +6,12 @@ typedef struct ms_t_gen_keys_t {
 	unsigned char* ms_pbuf;
 } ms_t_gen_keys_t;
 
+typedef struct ms_t_gen_keys_size_t {
+	int ms_retval;
+	int ms_keySize;
+	unsigned char* ms_pbuf;
+} ms_t_gen_keys_size_t;
+
 typedef struct ms_t_decrypt_msg_t {
 	int ms_retval;
 	unsigned char* ms_inMsg;
@@ -187,6 +193,17 @@ sgx_status_t t_gen_keys(sgx_enclave_id_t eid, int* retval, unsigned char* pbuf)
 	return status;
 }
 
+sgx_status_t t_gen_keys_size(sgx_enclave_id_t eid, int* retval, int keySize, unsigned char* pbuf)
+{
+	sgx_status_t status;
+	ms_t_gen_keys_size_t ms;
+	ms.ms_keySize = keySize;
+	ms.ms_pbuf = pbuf;
+	status = sgx_ecall(eid, 1, &ocall_table_TestEnclave, &ms);
+	if (status == SGX_SUCCESS && retval) *retval = ms.ms_retval;
+	return status;
+}
+
 sgx_status_t t_decrypt_msg(sgx_enclave_id_t eid, int* retval, unsigned char* inMsg, int inLen, unsigned char* outMsg)
 {
 	sgx_status_t status;
@@ -194,7 +211,7 @@ sgx_status_t t_decrypt_msg(sgx_enclave_id_t eid, int* retval, unsigned char* inM
 	ms.ms_inMsg = inMsg;
 	ms.ms_inLen = inLen;
 	ms.ms_outMsg = outMsg;
-	status = sgx_ecall(eid, 1, &ocall_table_TestEnclave, &ms);
+	status = sgx_ecall(eid, 2, &ocall_table_TestEnclave, &ms);
 	if (status == SGX_SUCCESS && retval) *retval = ms.ms_retval;
 	return status;
 }
