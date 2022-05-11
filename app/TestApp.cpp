@@ -342,91 +342,27 @@ int main(int argc, char *argv[])
     
     unsigned char *buf = (unsigned char *)malloc(8192);
     int keylen;
-    printf("Calling enclave to generate keys...\n");
-
-    status = t_gen_keys(global_eid, &keylen, buf);
-
-    if (status != SGX_SUCCESS) {
-        printf("Call to SGX has failed.\n");
-        return 1;    //Test failed
-    }
-    if (keylen == 0) return 1;
-    std::cout << "keylen: " << keylen << std::endl;
-
-    // print public key
-    printf ("{\"public key returned from enclave\":\"");
-    int i;
-    for (i = 0; i < keylen; i++) {
-        printf("%02x", (unsigned char) buf[i]);
-    }
-    printf("\"}\n");
-
-    RSA *pPubRSA = d2i_RSAPublicKey(NULL, (const unsigned char**)&buf,
-                                    (long)keylen);
-    if (pPubRSA == NULL) {
-        perror("Unable to allocate RSA");
-        exit(EXIT_FAILURE);
-    }
     
-    // Encrypt a message
+    RSA *pPubRSA;
+    
     int num;
     int plen;
     unsigned char ctext[256];
     static unsigned char ptext_ex[] = "Hello Enclave!";
     plen = sizeof(ptext_ex) - 1;
-
-    std::cout << std::endl;
-    std::cout << "Encrypting message: \"" << ptext_ex << "\"" << std::endl;
-
-    num = RSA_public_encrypt(plen, ptext_ex, ctext, pPubRSA, RSA_PKCS1_PADDING);
-    if (num < 0) {
-        std::cout << "Got error " << ERR_peek_last_error() << std::endl;
-        return 1;
-    }
-    printf ("{\"encrypted message\":\"");
-    printf("%.*s", num, ctext);
-    printf("\"}\n\n");
     
     int retNum;
     unsigned char ptext[256];
-    printf("Sending encrypted message to enclave...\n");
-
-    status = t_decrypt_msg(global_eid, &retNum, ctext, num, ptext);
-
-    if (status != SGX_SUCCESS) {
-        printf("Call to SGX failed");
-        return 1;
-    }
-    if (retNum == 0) {
-        return 1;
-    }
-
-    printf("Received decrypted message returned from enclave.\n");
-    printf ("{\"decrypted message\":\"");
-    printf("%.*s", retNum, ptext);
-    printf("\"}\n\n");
-    
-    RSA_free(pPubRSA);
-
-    
-    ///////////
-    ///////////
-    ///////////////////////////////////
-    // let's do some timing!
-
-    cout << endl << endl << "Let's do some timing!!!" << endl << endl;
     
     struct rusage start_total, finish_total;
 
     double user_average_enclave, system_average_enclave,
         user_average_plain, system_average_plain;
 
-    int NUMREPS;
+    int NUMREPS = 1000;
     
     ///////////////////////////////////////
     //////////// TIMING KEY GENERATION
-
-    NUMREPS = 1000;
 
 #if 0
     cout << endl << "Non-enclave key generation-----------" << endl << endl;
@@ -472,8 +408,9 @@ int main(int argc, char *argv[])
     ///////////////////////////////////////
     //////////// TIMING DECRYPTION
 
+
     cout << endl << "Non-enclave decryption------------" << endl;
-    for (int i = 1; i <= 1; i++) { // change to 4, i * 1024
+    for (int i = 1; i <= 4; i++) { // change to 4, i * 1024
         int keySize = i * 1024;
         cout << "Key size " << keySize << endl;
         keylen = gen_keys_size(keySize, buf);
@@ -498,13 +435,12 @@ int main(int argc, char *argv[])
           time_difference(start_total.ru_stime, finish_total.ru_stime)
           / (double) NUMREPS << endl;
     }
-
-#if 0
+    
     cout << endl << "Enclave decryption------------" << endl;
-    for (int i = 1; i <= 1; i++) { // change to 4, i * 1024
+    for (int i = 1; i <= 4; i++) { // change to 4, i * 1024
         int keySize = i * 1024;
         cout << "Key size " << keySize << endl;
-        status = t_gen_keys(global_eid, &keylen, buf);
+        status = t_gen_keys_size(global_eid, &keylen, keySize, buf);
         if (status != SGX_SUCCESS) {
             printf("Call to SGX has failed.\n");
             return 1;    //Test failed
@@ -531,7 +467,6 @@ int main(int argc, char *argv[])
           time_difference(start_total.ru_stime, finish_total.ru_stime)
           / (double) NUMREPS << endl;
     }
-#endif
     
     //////////
     sgx_destroy_enclave(global_eid);
